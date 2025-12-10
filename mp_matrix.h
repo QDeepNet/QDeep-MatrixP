@@ -16,6 +16,9 @@
  *        • Root is always black
  *        • No red node has red children
  *        • All paths have equal black node counts
+ *
+ *  Copyright:
+ *      (c) 2025 QDeep.Net
  * ============================================================================
  */
 

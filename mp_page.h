@@ -1,0 +1,368 @@
+/**
+ * ============================================================================
+ *  Project:      QDeep / MatrixP
+ *  File:         mp_page.h
+ *  Description:  Page-level allocator for chunk-based matrix storage.
+ *
+ *  A "page" owns:
+ *   - One large contiguous memory region (mmap)
+ *   - PAGE_SIZE fixed-size chunks
+ *   - A free-list for chunk reuse
+ *   - Tree and list links for global management
+ *
+ *  Design goals:
+ *   - Minimize mmap / munmap calls
+ *   - O(1) chunk allocation and return
+ *   - Cache-friendly linear memory
+ *   - RB-tree compatibility for indexing pages
+ *
+ *  Memory layout:
+ *
+ *      mmap() -> [ chunk0 | chunk1 | ... | chunkN ]
+ *
+ *  Each chunk maps to:
+ *      data + i * CHUNK_SIZE
+ *
+ *  Copyright:
+ *      (c) 2025 QDeep.Net
+ * ============================================================================
+ */
+
+#ifndef QDEEP_MATRIXP_PAGE_H
+#define QDEEP_MATRIXP_PAGE_H
+
+#include <sys/mman.h>
+#include <unistd.h>
+#include <stdlib.h>
+
+#include "mp_chunk.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+/* ============================================================================
+ *  Configuration
+ * ============================================================================
+ */
+
+/**
+ * Number of chunks per page.
+ *
+ * PAGE_SIZE must:
+ *   - Fit into uint16_t
+ *   - Be small enough to keep metadata cache-hot
+ */
+#define PAGE_SIZE 1024
+
+
+/* ============================================================================
+ *  Page structure
+ * ============================================================================
+ */
+
+/**
+ * Page descriptor.
+ *
+ * A page is both:
+ *   - A memory owner (mmap region)
+ *   - A container of chunks
+ *
+ * And participates in:
+ *   - A Red-Black tree (address-based indexing)
+ *   - A doubly-linked page list (iteration / eviction)
+ */
+typedef struct mp_page {
+
+    /* --------------------------------------------------------------------
+     * Backing memory
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Pointer to raw chunk data storage.
+     *
+     * Layout:
+     *   data + (i * CHUNK_SIZE)  ->  chunk[i]
+     */
+    mp_cdata data;
+
+    /* --------------------------------------------------------------------
+     * Chunk metadata
+     * ------------------------------------------------------------------ */
+
+    /** All chunks owned by this page */
+    mp_chunk chunk[PAGE_SIZE];
+
+    /**
+     * Free-list linkage (intrusive circular list).
+     *
+     * - next[pos] / prev[pos] define the free ring
+     * - page->free stores the head
+     * - UINT16_MAX means "no free chunks"
+     */
+    uint16_t next[PAGE_SIZE];
+    uint16_t prev[PAGE_SIZE];
+
+    /**
+     * Allocation state:
+     *   fill = number of chunks ever handed out
+     *   free = head of free-list (or UINT16_MAX)
+     */
+    uint16_t free;
+    uint16_t fill;
+
+    /* --------------------------------------------------------------------
+     * RB-tree linkage (page index)
+     * ------------------------------------------------------------------ */
+
+    struct mp_page *sides[2]; /**< left / right children */
+    uint8_t          color;    /**< RB-tree node color */
+
+    /* --------------------------------------------------------------------
+     * Doubly-linked page list
+     * ------------------------------------------------------------------ */
+
+    struct mp_page *nextp;
+    struct mp_page *prevp;
+
+    /* --------------------------------------------------------------------
+     * Memory size bookkeeping
+     * ------------------------------------------------------------------ */
+} mp_page;
+
+
+/**
+ * Required logical size for chunk storage (bytes).
+ */
+static constexpr uint64_t __NEED_SIZE =
+    (uint64_t)PAGE_SIZE * CHUNK_SIZE * sizeof(int64_t);
+
+/**
+ * System page size (cached).
+ */
+static uint64_t __PAGE_SIZE = 0;
+
+/**
+ * Real mmap size, rounded up to system page boundary.
+ */
+static uint64_t __MMAP_SIZE = 0;
+
+/* ============================================================================
+ *  Page lifecycle
+ * ============================================================================
+ */
+
+/**
+ * Initialize a page and map its backing memory.
+ *
+ * Responsibilities:
+ *   - mmap backing storage
+ *   - Bind chunk->data pointers
+ *   - Reset RB-tree and list links
+ *   - Initialize allocation state
+ *
+ * Returns:
+ *   EXIT_SUCCESS on success
+ *   EXIT_FAILURE on mmap failure
+ */
+static __inline__ int32_t
+mp_page_init(mp_page *page)
+{
+    /* Caching the sizes for mmap usage */
+    if (!__PAGE_SIZE) __PAGE_SIZE = sysconf(_SC_PAGESIZE);
+    if (!__MMAP_SIZE) __MMAP_SIZE = (__NEED_SIZE + __PAGE_SIZE - 1) & ~(__PAGE_SIZE - 1);
+
+    /* Allocate aligned backing storage */
+    page->data = (mp_cdata) mmap(
+        NULL,
+        __MMAP_SIZE,
+        PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS,
+        -1,
+        0
+    );
+
+    if (page->data == MAP_FAILED)
+        return EXIT_FAILURE;
+
+    /* Initialize chunk descriptors */
+    for (uint16_t i = 0; i < PAGE_SIZE; i++) {
+        mp_chunk *chunk = page->chunk + i;
+
+        chunk->data  = page->data + (uint64_t)i * CHUNK_SIZE;
+        chunk->color = MP_RED;
+        chunk->sides[0] = NULL;
+        chunk->sides[1] = NULL;
+    }
+
+    /* Reset page links */
+    page->nextp = NULL;
+    page->prevp = NULL;
+
+    page->color = MP_RED;
+    page->sides[0] = NULL;
+    page->sides[1] = NULL;
+
+    /* Allocation state */
+    page->free = UINT16_MAX;
+    page->fill = 0;
+
+    return EXIT_SUCCESS;
+}
+
+
+/**
+ * Release page backing memory.
+ *
+ * Note:
+ *   - Does NOT destroy page object itself
+ *   - Caller must ensure no chunks are in use
+ */
+static __inline__ void
+mp_page_free(const mp_page *page)
+{
+    munmap(page->data, __MMAP_SIZE);
+}
+
+
+/* ============================================================================
+ *  Allocation helpers
+ * ============================================================================
+ */
+
+/**
+ * Check whether a page is fully occupied.
+ *
+ * A page is considered full when:
+ *   - All chunks have been issued at least once
+ *   - No chunks are currently free
+ */
+static __inline__ int32_t
+mp_page_full(const mp_page *page)
+{
+    return (page->fill == PAGE_SIZE) && (page->free == UINT16_MAX);
+}
+
+
+/* ============================================================================
+ *  Internal free-list manipulation
+ * ============================================================================
+ */
+
+/**
+ * Remove a position from the free-list.
+ *
+ * Preconditions:
+ *   - pos is currently free
+ */
+static __inline__ void
+__mp_page_get_pos(mp_page *page, const uint16_t pos)
+{
+    uint16_t *__restrict next = page->next;
+    uint16_t *__restrict prev = page->prev;
+
+    /* Single-element list */
+    if (next[pos] == pos) {
+        page->free = UINT16_MAX;
+        return;
+    }
+
+    prev[next[pos]] = prev[pos];
+    next[prev[pos]] = next[pos];
+
+    if (page->free == pos)
+        page->free = next[pos];
+}
+
+
+/**
+ * Insert a position into the free-list.
+ */
+static __inline__ void
+__mp_page_ret_pos(mp_page *page, const uint16_t pos)
+{
+    uint16_t *__restrict next = page->next;
+    uint16_t *__restrict prev = page->prev;
+
+    const uint16_t free = page->free;
+
+    /* Empty free-list */
+    if (free == UINT16_MAX) {
+        page->free = pos;
+        next[pos] = pos;
+        prev[pos] = pos;
+        return;
+    }
+
+    /* Insert before free head */
+    const uint16_t tail = prev[free];
+
+    next[pos] = free;
+    prev[pos] = tail;
+
+    next[tail] = pos;
+    prev[free] = pos;
+}
+
+
+/* ============================================================================
+ *  Public chunk allocation API
+ * ============================================================================
+ */
+
+/**
+ * Allocate a chunk from the page.
+ *
+ * Strategy:
+ *   1. Use never-issued chunks (linear growth)
+ *   2. Reuse returned chunks from free-list
+ *
+ * Returns:
+ *   Pointer to chunk or NULL if page exhausted
+ */
+static __inline__ mp_chunk *
+mp_page_get_new(mp_page *page)
+{
+    const uint16_t pos = page->free;
+
+    if (page->fill < PAGE_SIZE)
+        return page->chunk + page->fill++;
+
+    if (pos == UINT16_MAX)
+        return NULL;
+
+    __mp_page_get_pos(page, pos);
+    return page->chunk + pos;
+}
+
+
+/**
+ * Mark an already known chunk as allocated.
+ *
+ * Used when the position is known externally.
+ */
+static __inline__ void
+mp_page_get(mp_page *page, const mp_chunk *chunk)
+{
+    const uint16_t pos = (uint16_t)(chunk - page->chunk);
+    __mp_page_get_pos(page, pos);
+}
+
+
+/**
+ * Return a chunk back to the page.
+ */
+static __inline__ void
+mp_page_ret(mp_page *page, const mp_chunk *chunk)
+{
+    const uint16_t pos = (uint16_t)(chunk - page->chunk);
+    __mp_page_ret_pos(page, pos);
+}
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* QDEEP_MATRIXP_PAGE_H */

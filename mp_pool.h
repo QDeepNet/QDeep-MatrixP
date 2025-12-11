@@ -65,7 +65,8 @@ typedef struct mp_pool {
 /**
  * Initialize a pool.
  */
-static __inline__ void mp_pool_init(mp_pool *pool) {
+static __inline__ void
+mp_pool_init(mp_pool *pool) {
     pool->head = NULL;
     pool->root = NULL;
     pool->size = 0;
@@ -74,7 +75,8 @@ static __inline__ void mp_pool_init(mp_pool *pool) {
 /**
  * Initialize pool for GPU variant (currently same as CPU).
  */
-static __inline__ void mp_pool_init_gpu(mp_pool *pool) {
+static __inline__ void
+mp_pool_init_gpu(mp_pool *pool) {
     mp_pool_init(pool);
 }
 
@@ -85,7 +87,8 @@ static __inline__ void mp_pool_init_gpu(mp_pool *pool) {
  *   - Iterates page list
  *   - Calls mp_page_free for each
  */
-static __inline__ void mp_pool_free(const mp_pool *pool) {
+static __inline__ void
+mp_pool_free(const mp_pool *pool) {
     for (mp_page *page = pool->head, *next; page != NULL; page = next) {
         next = page->nextp;
         mp_page_free(page);
@@ -102,7 +105,8 @@ static __inline__ void mp_pool_free(const mp_pool *pool) {
 /**
  * Insert a page into the circular doubly-linked list.
  */
-static __inline__ void mp_pool_list_insert(mp_pool *pool, mp_page *page) {
+static __inline__ void
+mp_pool_list_insert(mp_pool *pool, mp_page *page) {
     mp_page *head = pool->head ? pool->head : page;
     mp_page *last = pool->head ? pool->head->prevp : page;
 
@@ -119,7 +123,8 @@ static __inline__ void mp_pool_list_insert(mp_pool *pool, mp_page *page) {
 /**
  * Remove a page from the list.
  */
-static __inline__ void mp_pool_list_remove(mp_pool *pool, const mp_page *page) {
+static __inline__ void
+mp_pool_list_remove(mp_pool *pool, const mp_page *page) {
     mp_page *prev = page->prevp;
     mp_page *next = page->nextp;
 
@@ -132,7 +137,8 @@ static __inline__ void mp_pool_list_remove(mp_pool *pool, const mp_page *page) {
 /**
  * Rotate head pointer to next page (simple FIFO rotation).
  */
-static __inline__ void mp_pool_list_rotate(mp_pool *pool) {
+static __inline__ void
+mp_pool_list_rotate(mp_pool *pool) {
     if (pool->head) pool->head = pool->head->nextp;
 }
 
@@ -149,7 +155,8 @@ static __inline__ void mp_pool_list_rotate(mp_pool *pool) {
  *  - Uses pool->stack and pool->sides for temporary state
  *  - Performs standard RB-tree balancing
  */
-static __inline__ void mp_pool_tree_insert(mp_pool *pool, mp_page *page) {
+static __inline__ void
+mp_pool_tree_insert(mp_pool *pool, mp_page *page) {
     uint8_t side = 0;
     int8_t pos = -1;
     mp_page *node = pool->root;
@@ -209,7 +216,8 @@ static __inline__ void mp_pool_tree_insert(mp_pool *pool, mp_page *page) {
 /**
  * Find the page containing a given chunk using the RB-tree.
  */
-static __inline__ mp_page *mp_pool_tree_find(const mp_pool *pool, const mp_chunk *chunk) {
+static __inline__ mp_page *
+mp_pool_tree_find(const mp_pool *pool, const mp_chunk *chunk) {
     mp_page *node = pool->head;
 
     while (node != NULL) {
@@ -233,7 +241,8 @@ static __inline__ mp_page *mp_pool_tree_find(const mp_pool *pool, const mp_chunk
  *  - Create new page if necessary
  *  - Rotate list if head page is full
  */
-static __inline__ mp_chunk *mp_pool_get(mp_pool *pool) {
+static __inline__ mp_chunk *
+mp_pool_get(mp_pool *pool) {
     mp_page *page = pool->head;
     mp_chunk *chunk = NULL;
 
@@ -261,7 +270,8 @@ end:
  *  - Free-list in page
  *  - Rotates page to back of list
  */
-static __inline__ void mp_pool_ret(mp_pool *pool, const mp_chunk *chunk) {
+static __inline__ void
+mp_pool_ret(mp_pool *pool, const mp_chunk *chunk) {
     mp_page *page = mp_pool_tree_find(pool, chunk);
 
     mp_page_ret(page, chunk);

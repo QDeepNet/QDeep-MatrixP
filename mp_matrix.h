@@ -86,13 +86,15 @@ typedef struct mp_matrix {
 /**
  * Initialize an empty tree.
  */
-static __inline__ void mp_tree_init(mp_tree *tree) {
+static __inline__ void
+mp_tree_init(mp_tree *tree) {
     tree->root = NULL;
     tree->find = NULL;
     tree->offset.pos = UINT64_MAX;
 }
 
-static __inline__ void mp_tree_free(mp_tree *tree, mp_pool *pool) {
+static __inline__ void
+mp_tree_free(mp_tree *tree, mp_pool *pool) {
     mp_chunk *node = tree->root;
     int32_t pos = -1;
     while (1) {
@@ -119,7 +121,8 @@ static __inline__ void mp_tree_free(mp_tree *tree, mp_pool *pool) {
 /**
  * Rebalance tree after insertion.
  */
-static __inline__ void rb_tree_insert_optimize(mp_tree *tree) {
+static __inline__ void
+rb_tree_insert_optimize(mp_tree *tree) {
     while (--tree->pos >= 0) {
         const uint8_t side = tree->sides[tree->pos];
         mp_chunk *g_ = tree->stack[tree->pos];       // Grandparent
@@ -159,7 +162,8 @@ static __inline__ void rb_tree_insert_optimize(mp_tree *tree) {
 /**
  * Rebalance tree after removal.
  */
-static __inline__ void rb_tree_remove_optimize(mp_tree *tree) {
+static __inline__ void
+rb_tree_remove_optimize(mp_tree *tree) {
     while (tree->pos >= 0) {
         const uint8_t side = tree->sides[tree->pos];
         mp_chunk *p = tree->stack[tree->pos];       // Parent
@@ -232,7 +236,8 @@ static __inline__ void rb_tree_remove_optimize(mp_tree *tree) {
  *
  * Uses cache in tree->find to speed repeated lookups.
  */
-static __inline__ mp_chunk *rb_tree_find(mp_tree *tree, const mp_coffs offset) {
+static __inline__ mp_chunk *
+rb_tree_find(mp_tree *tree, const mp_coffs offset) {
     if (tree->find && mp_coffs_cmp(tree->offset, offset) == 0) return tree->find;
 
     mp_chunk *node = tree->root;
@@ -251,7 +256,8 @@ static __inline__ mp_chunk *rb_tree_find(mp_tree *tree, const mp_coffs offset) {
 /**
  * Insert chunk into tree.
  */
-static __inline__ void rb_tree_insert(mp_tree *tree, mp_chunk *chunk) {
+static __inline__ void
+rb_tree_insert(mp_tree *tree, mp_chunk *chunk) {
     mp_chunk *node = tree->find;
     
     if (!node || mp_coffs_cmp(node->offset, chunk->offset) != 0)
@@ -274,7 +280,8 @@ static __inline__ void rb_tree_insert(mp_tree *tree, mp_chunk *chunk) {
 /**
  * Remove chunk from tree.
  */
-static __inline__ void rb_tree_remove(mp_tree *tree, const mp_chunk *chunk) {
+static __inline__ void
+rb_tree_remove(mp_tree *tree, const mp_chunk *chunk) {
     if (!chunk) return;
 
     mp_chunk *node = tree->find;
@@ -335,13 +342,15 @@ static __inline__ void rb_tree_remove(mp_tree *tree, const mp_chunk *chunk) {
 /**
  * Initialize an empty matrix.
  */
-static __inline__ void mp_matrix_init(mp_matrix *matx, mp_pool *pool) {
+static __inline__ void
+mp_matrix_init(mp_matrix *matx, mp_pool *pool) {
     mp_tree_init(&matx->tree);
     matx->pool = pool;
     matx->fd = -1;
 }
 
-static __inline__ void mp_matrix_free(mp_matrix *matx) {
+static __inline__ void
+mp_matrix_free(mp_matrix *matx) {
     mp_tree_free(&matx->tree, matx->pool);
 }
 

@@ -73,14 +73,6 @@ mp_pool_init(mp_pool *pool) {
 }
 
 /**
- * Initialize pool for GPU variant (currently same as CPU).
- */
-static __inline__ void
-mp_pool_init_gpu(mp_pool *pool) {
-    mp_pool_init(pool);
-}
-
-/**
  * Free all pages in the pool and their memory.
  *
  * Notes:

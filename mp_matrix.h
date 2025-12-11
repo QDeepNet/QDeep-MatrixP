@@ -93,6 +93,9 @@ mp_tree_init(mp_tree *tree) {
     tree->offset.pos = UINT64_MAX;
 }
 
+/**
+ * Free all nodes in the tree and return there chunks into pool.
+ */
 static __inline__ void
 mp_tree_free(mp_tree *tree, mp_pool *pool) {
     mp_chunk *node = tree->root;
@@ -349,6 +352,10 @@ mp_matrix_init(mp_matrix *matx, mp_pool *pool) {
     matx->fd = -1;
 }
 
+
+/**
+ * Free the data taken y thi s matrix
+ */
 static __inline__ void
 mp_matrix_free(mp_matrix *matx) {
     mp_tree_free(&matx->tree, matx->pool);

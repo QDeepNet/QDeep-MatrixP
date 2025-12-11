@@ -28,10 +28,18 @@
 #ifndef QDEEP_MATRIXP_CHUNK_H
 #define QDEEP_MATRIXP_CHUNK_H
 
+#include <errno.h>
 #include <stdint.h>
+#include <unistd.h>    // read(), write(), close()
+#include <fcntl.h>     // fcntl(), open() flags
+#include <errno.h>     // errno, EINTR
+#include <stdint.h>    // int64_t
+#include <stdlib.h>    // malloc(), free()
+#include <sys/types.h> // ssize_t
 
 #ifdef __cplusplus
 extern "C" {
+
 #endif
 
 /* ============================================================================
@@ -75,7 +83,7 @@ extern "C" {
  *
  * 256 × 256 = 65,536
  */
-#define CHUNK_SIZE (1 << (CHUNK_POW + CHUNK_POW)) /* 65536 */
+#define  CHUNK_SIZE (1 << (CHUNK_POW + CHUNK_POW)) /* 65536 */
 
 /**
  * Convert 2D chunk-local coordinates to linear index.
@@ -128,10 +136,9 @@ typedef union mp_csize {
     uint16_t size;
 
     struct {
-        uint8_t x;   /**< Encoded width  (real = 256 - x) */
-        uint8_t y;   /**< Encoded height (real = 256 - y) */
+        uint8_t x; /**< Encoded width  (real = 256 - x) */
+        uint8_t y; /**< Encoded height (real = 256 - y) */
     } dim;
-
 } mp_csize;
 
 
@@ -156,10 +163,9 @@ typedef union mp_coffs {
     uint64_t pos;
 
     struct {
-        uint32_t x;  /**< Chunk X coordinate (global space) */
-        uint32_t y;  /**< Chunk Y coordinate (global space) */
+        uint32_t x; /**< Chunk X coordinate (global space) */
+        uint32_t y; /**< Chunk Y coordinate (global space) */
     } dim;
-
 } mp_coffs;
 
 
@@ -174,8 +180,7 @@ typedef union mp_coffs {
  * Ordering is lexicographical over the 64-bit packed value.
  */
 static __inline__ int32_t
-mp_coffs_cmp(const mp_coffs a, const mp_coffs b)
-{
+mp_coffs_cmp(const mp_coffs a, const mp_coffs b) {
     return (a.pos > b.pos) - (a.pos < b.pos);
 }
 
@@ -199,23 +204,67 @@ mp_coffs_cmp(const mp_coffs a, const mp_coffs b)
  *   - Global offset
  */
 typedef struct mp_chunk {
-
     /* --------------------------------------------------------------------
      * Tree linkage (Red-Black tree)
      * ------------------------------------------------------------------ */
 
     struct mp_chunk *sides[2]; /**< sides[0] = left, sides[1] = right */
-    uint8_t          color;    /**< RB-tree node color */
+    uint8_t color; /**< RB-tree node color */
 
     /* --------------------------------------------------------------------
      * Chunk payload
      * ------------------------------------------------------------------ */
 
-    mp_cdata data;             /**< Pointer to chunk data buffer */
-    mp_csize size;             /**< Effective chunk dimensions */
-    mp_coffs offset;           /**< Global chunk offset */
-
+    mp_cdata data; /**< Pointer to chunk data buffer */
+    mp_csize size; /**< Effective chunk dimensions */
+    mp_coffs offset; /**< Global chunk offset */
 } mp_chunk;
+
+static __inline__ void
+mp_chunk_init(mp_chunk *chunk) {
+    chunk->color = MP_RED;
+    chunk->sides[0] = NULL;
+    chunk->sides[1] = NULL;
+
+    chunk->data = NULL;
+    chunk->size.size = 0;
+    chunk->offset.pos = 0;
+}
+
+static __inline__ int32_t
+mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
+    auto ptr = (uint8_t *) chunk->data;
+    uint64_t rem = CHUNK_SIZE * sizeof(int64_t);
+
+    while (0 < rem) {
+        const int64_t ret = read(fd, ptr, rem);
+        if (ret == 0) return -1; // EOF
+        if (ret < 0) {
+            if (errno == EINTR) continue;
+            return -1; // real error
+        }
+        ptr += ret;
+        rem -= ret;
+    }
+    return 0;
+}
+
+static __inline__ int32_t
+mp_chunk_write(const mp_chunk *chunk, const int32_t fd) {
+    auto ptr = (const uint8_t *) chunk->data;
+    uint64_t rem = CHUNK_SIZE * sizeof(int64_t);
+
+    while (0 < rem) {
+        const int64_t ret = write(fd, ptr, rem);
+        if (ret < 0) {
+            if (errno == EINTR) continue;
+            return -1;                                  // real error
+        }
+        ptr += ret;
+        rem -= ret;
+    }
+    return 0;
+}
 
 
 #ifdef __cplusplus

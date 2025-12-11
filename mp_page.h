@@ -39,6 +39,7 @@
 
 #ifdef __cplusplus
 extern "C" {
+
 #endif
 
 
@@ -74,7 +75,6 @@ extern "C" {
  *   - A doubly-linked page list (iteration / eviction)
  */
 typedef struct mp_page {
-
     /* --------------------------------------------------------------------
      * Backing memory
      * ------------------------------------------------------------------ */
@@ -117,7 +117,7 @@ typedef struct mp_page {
      * ------------------------------------------------------------------ */
 
     struct mp_page *sides[2]; /**< left / right children */
-    uint8_t          color;    /**< RB-tree node color */
+    uint8_t color; /**< RB-tree node color */
 
     /* --------------------------------------------------------------------
      * Doubly-linked page list
@@ -136,7 +136,7 @@ typedef struct mp_page {
  * Required logical size for chunk storage (bytes).
  */
 static constexpr uint64_t __NEED_SIZE =
-    (uint64_t)PAGE_SIZE * CHUNK_SIZE * sizeof(int64_t);
+        (uint64_t) PAGE_SIZE * CHUNK_SIZE * sizeof(int64_t);
 
 /**
  * System page size (cached).
@@ -167,8 +167,7 @@ static uint64_t __MMAP_SIZE = 0;
  *   EXIT_FAILURE on mmap failure
  */
 static __inline__ int32_t
-mp_page_init(mp_page *page)
-{
+mp_page_init(mp_page *page) {
     /* Caching the sizes for mmap usage */
     if (!__PAGE_SIZE) __PAGE_SIZE = sysconf(_SC_PAGESIZE);
     if (!__MMAP_SIZE) __MMAP_SIZE = (__NEED_SIZE + __PAGE_SIZE - 1) & ~(__PAGE_SIZE - 1);
@@ -189,11 +188,9 @@ mp_page_init(mp_page *page)
     /* Initialize chunk descriptors */
     for (uint16_t i = 0; i < PAGE_SIZE; i++) {
         mp_chunk *chunk = page->chunk + i;
+        mp_chunk_init(chunk);
 
-        chunk->data  = page->data + (uint64_t)i * CHUNK_SIZE;
-        chunk->color = MP_RED;
-        chunk->sides[0] = NULL;
-        chunk->sides[1] = NULL;
+        chunk->data = page->data + (uint64_t) i * CHUNK_SIZE;
     }
 
     /* Reset page links */
@@ -220,8 +217,7 @@ mp_page_init(mp_page *page)
  *   - Caller must ensure no chunks are in use
  */
 static __inline__ void
-mp_page_free(const mp_page *page)
-{
+mp_page_free(const mp_page *page) {
     munmap(page->data, __MMAP_SIZE);
 }
 
@@ -239,8 +235,7 @@ mp_page_free(const mp_page *page)
  *   - No chunks are currently free
  */
 static __inline__ int32_t
-mp_page_full(const mp_page *page)
-{
+mp_page_full(const mp_page *page) {
     return (page->fill == PAGE_SIZE) && (page->free == UINT16_MAX);
 }
 
@@ -257,8 +252,7 @@ mp_page_full(const mp_page *page)
  *   - pos is currently free
  */
 static __inline__ void
-__mp_page_get_pos(mp_page *page, const uint16_t pos)
-{
+__mp_page_get_pos(mp_page *page, const uint16_t pos) {
     uint16_t *__restrict next = page->next;
     uint16_t *__restrict prev = page->prev;
 
@@ -280,8 +274,7 @@ __mp_page_get_pos(mp_page *page, const uint16_t pos)
  * Insert a position into the free-list.
  */
 static __inline__ void
-__mp_page_ret_pos(mp_page *page, const uint16_t pos)
-{
+__mp_page_ret_pos(mp_page *page, const uint16_t pos) {
     uint16_t *__restrict next = page->next;
     uint16_t *__restrict prev = page->prev;
 
@@ -322,8 +315,7 @@ __mp_page_ret_pos(mp_page *page, const uint16_t pos)
  *   Pointer to chunk or NULL if page exhausted
  */
 static __inline__ mp_chunk *
-mp_page_get_new(mp_page *page)
-{
+mp_page_get_new(mp_page *page) {
     const uint16_t pos = page->free;
 
     if (page->fill < PAGE_SIZE)
@@ -343,9 +335,8 @@ mp_page_get_new(mp_page *page)
  * Used when the position is known externally.
  */
 static __inline__ void
-mp_page_get(mp_page *page, const mp_chunk *chunk)
-{
-    const uint16_t pos = (uint16_t)(chunk - page->chunk);
+mp_page_get(mp_page *page, const mp_chunk *chunk) {
+    const uint16_t pos = (uint16_t) (chunk - page->chunk);
     __mp_page_get_pos(page, pos);
 }
 
@@ -354,9 +345,8 @@ mp_page_get(mp_page *page, const mp_chunk *chunk)
  * Return a chunk back to the page.
  */
 static __inline__ void
-mp_page_ret(mp_page *page, const mp_chunk *chunk)
-{
-    const uint16_t pos = (uint16_t)(chunk - page->chunk);
+mp_page_ret(mp_page *page, const mp_chunk *chunk) {
+    const uint16_t pos = (uint16_t) (chunk - page->chunk);
     __mp_page_ret_pos(page, pos);
 }
 

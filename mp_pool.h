@@ -27,6 +27,7 @@
 
 #ifdef __cplusplus
 extern "C" {
+
 #endif
 
 
@@ -44,15 +45,15 @@ extern "C" {
  *  - temporary stack for tree insert operations
  */
 typedef struct mp_pool {
-    mp_page *head;       /**< Head of page list */
-    mp_page *root;       /**< Root of RB-tree (indexed by data ptr) */
-    uint32_t  size;       /**< Total number of pages */
+    mp_page *head; /**< Head of page list */
+    mp_page *root; /**< Root of RB-tree (indexed by data ptr) */
+    uint32_t size; /**< Total number of pages */
 
     /* ------------------------------------------------------------------------
      * Temporary stack for RB-tree insertion balancing
      * ---------------------------------------------------------------------- */
-    mp_page *stack[32];  /**< Ancestor nodes during tree traversal */
-    uint8_t   sides[32];  /**< Side taken at each level (0=left,1=right) */
+    mp_page *stack[32]; /**< Ancestor nodes during tree traversal */
+    uint8_t  sides[32]; /**< Side taken at each level (0=left,1=right) */
 } mp_pool;
 
 
@@ -166,9 +167,9 @@ static __inline__ void mp_pool_tree_insert(mp_pool *pool, mp_page *page) {
     /* Rebalance tree */
     while (--pos >= 0) {
         side = pool->sides[pos];
-        mp_page *g_ = pool->stack[pos];           // Grandparent
-        mp_page *y_ = g_->sides[1 - side];       // Uncle
-        mp_page *x_ = pool->stack[pos + 1];      // Parent
+        mp_page *g_ = pool->stack[pos]; // Grandparent
+        mp_page *y_ = g_->sides[1 - side]; // Uncle
+        mp_page *x_ = pool->stack[pos + 1]; // Parent
 
         if (x_->color == MP_BLACK) break;
 

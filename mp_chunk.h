@@ -83,7 +83,7 @@ extern "C" {
  *
  * 256 × 256 = 65,536
  */
-#define  CHUNK_SIZE (1 << (CHUNK_POW + CHUNK_POW)) /* 65536 */
+#define CHUNK_SIZE (1 << (CHUNK_POW + CHUNK_POW)) /* 65536 */
 
 /**
  * Convert 2D chunk-local coordinates to linear index.
@@ -97,6 +97,8 @@ extern "C" {
  *   - 0 ≤ y < 256
  */
 #define CHUNK_POS(x, y) (((y) << CHUNK_POW) | (x))
+
+#define CHUNK_BYTES  (CHUNK_SIZE * sizeof(int64_t))
 
 
 /* ============================================================================
@@ -234,7 +236,7 @@ mp_chunk_init(mp_chunk *chunk) {
 static __inline__ int32_t
 mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
     auto ptr = (uint8_t *) chunk->data;
-    uint64_t rem = CHUNK_SIZE * sizeof(int64_t);
+    uint64_t rem = CHUNK_BYTES;
 
     while (0 < rem) {
         const int64_t ret = read(fd, ptr, rem);
@@ -252,7 +254,7 @@ mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
 static __inline__ int32_t
 mp_chunk_write(const mp_chunk *chunk, const int32_t fd) {
     auto ptr = (const uint8_t *) chunk->data;
-    uint64_t rem = CHUNK_SIZE * sizeof(int64_t);
+    uint64_t rem = CHUNK_BYTES;
 
     while (0 < rem) {
         const int64_t ret = write(fd, ptr, rem);

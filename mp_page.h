@@ -136,7 +136,7 @@ typedef struct mp_page {
  * Required logical size for chunk storage (bytes).
  */
 static constexpr uint64_t __NEED_SIZE =
-        (uint64_t) PAGE_SIZE * CHUNK_SIZE * sizeof(int64_t);
+        (uint64_t) PAGE_SIZE * CHUNK_BYTES;
 
 /**
  * System page size (cached).

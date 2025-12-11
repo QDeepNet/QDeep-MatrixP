@@ -161,6 +161,11 @@ static __inline__ void mp_pool_tree_insert(mp_pool *pool, mp_page *page) {
         node = node->sides[side];
     }
 
+    /* Insert As Red Colored Node */
+    page->color = MP_RED;
+    page->sides[0] = NULL;
+    page->sides[1] = NULL;
+
     if (pos == -1) pool->root = page;
     else pool->stack[pos]->sides[side] = page;
 

@@ -26,9 +26,8 @@
 #define QDEEP_MATRIXP_MATRIX_H
 
 
-#include <stddef.h>
-
 #include "mp_chunk.h"
+#include "mp_pool.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,7 +50,7 @@ typedef struct mp_tree {
     int32_t pos;          /**< Depth index for stack during insert/remove */
 
     mp_chunk *stack[32]; /**< Ancestor nodes during traversal */
-    uint8_t    sides[32]; /**< Side taken at each level (0=left, 1=right) */
+    uint8_t   sides[32]; /**< Side taken at each level (0=left, 1=right) */
 } mp_tree;
 
 /**
@@ -71,9 +70,11 @@ typedef struct {
  *   - Matrix size
  */
 typedef struct mp_matrix {
-    mp_tree tree;
-    int32_t fd;
+    mp_pool *pool;
+    mp_tree  tree;
+
     mp_msize size;
+    int32_t fd;
 } mp_matrix;
 
 
@@ -91,6 +92,21 @@ static __inline__ void mp_tree_init(mp_tree *tree) {
     tree->offset.pos = UINT64_MAX;
 }
 
+static __inline__ void mp_tree_free(mp_tree *tree, mp_pool *pool) {
+    mp_chunk *node = tree->root;
+    int32_t pos = -1;
+    while (1) {
+        while (node) node = (tree->stack[++pos] = node)->sides[0];
+        if (pos == -1) break;
+
+        node = tree->stack[pos--];
+
+        mp_chunk *next = node->sides[1];
+        mp_pool_ret(pool, node);
+
+        node = next;
+    }
+}
 
 /* ============================================================================
  *  RB-tree insertion / removal optimization
@@ -243,6 +259,7 @@ static __inline__ void rb_tree_insert(mp_tree *tree, mp_chunk *chunk) {
 
     if (node) return;
 
+    /* Insert As Red Colored Node */
     tree->offset.pos = UINT64_MAX;
     chunk->color = MP_RED;
     chunk->sides[0] = NULL;
@@ -318,9 +335,14 @@ static __inline__ void rb_tree_remove(mp_tree *tree, const mp_chunk *chunk) {
 /**
  * Initialize an empty matrix.
  */
-static __inline__ void mp_matrix_init(mp_matrix *matx) {
+static __inline__ void mp_matrix_init(mp_matrix *matx, mp_pool *pool) {
     mp_tree_init(&matx->tree);
+    matx->pool = pool;
     matx->fd = -1;
+}
+
+static __inline__ void mp_matrix_free(mp_matrix *matx) {
+    mp_tree_free(&matx->tree, matx->pool);
 }
 
 

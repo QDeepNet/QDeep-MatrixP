@@ -197,10 +197,6 @@ mp_page_init(mp_page *page) {
     page->nextp = NULL;
     page->prevp = NULL;
 
-    page->color = MP_RED;
-    page->sides[0] = NULL;
-    page->sides[1] = NULL;
-
     /* Allocation state */
     page->free = UINT16_MAX;
     page->fill = 0;

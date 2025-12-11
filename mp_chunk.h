@@ -40,6 +40,8 @@
 #ifdef __cplusplus
 extern "C" {
 
+
+
 #endif
 
 /* ============================================================================
@@ -228,15 +230,10 @@ typedef struct mp_chunk {
  * Resets color, tree links, data pointer, and metadata fields.
  */
 static __inline__ void
-mp_chunk_init(mp_chunk *chunk)
-{
-    chunk->color      = MP_RED;   /* RB-tree node color */
-    chunk->sides[0]   = NULL;     /* left  child */
-    chunk->sides[1]   = NULL;     /* right child */
-
-    chunk->data       = NULL;     /* no attached memory yet */
-    chunk->size.size  = 0;        /* chunk data size (bytes/elements) */
-    chunk->offset.pos = 0;        /* logical offset of this chunk */
+mp_chunk_init(mp_chunk *chunk) {
+    chunk->data = NULL; /* no attached memory yet */
+    chunk->size.size = 0; /* chunk data size (bytes/elements) */
+    chunk->offset.pos = 0; /* logical offset of this chunk */
 }
 
 
@@ -248,23 +245,21 @@ mp_chunk_init(mp_chunk *chunk)
  *  -1  on EOF or unrecoverable error
  */
 static __inline__ int32_t
-mp_chunk_read(const mp_chunk *chunk, const int32_t fd)
-{
-    uint8_t  *ptr = (uint8_t *) chunk->data;
-    uint64_t  rem = CHUNK_BYTES;
+mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
+    uint8_t *ptr = (uint8_t *) chunk->data;
+    uint64_t rem = CHUNK_BYTES;
 
     while (rem > 0) {
         const int64_t ret = read(fd, ptr, rem);
 
         /* Expected: positive bytes read. ret <= 0 is unlikely. */
         if (__builtin_expect(ret <= 0, 0)) {
-            if (errno == EINTR)
-                continue;       /* retry on interrupt */
-            return -1;          /* EOF or real error */
+            if (errno == EINTR) continue; /* retry on interrupt */
+            return -1; /* EOF or real error */
         }
 
         ptr += ret;
-        rem -= (uint64_t)ret;
+        rem -= (uint64_t) ret;
     }
 
     return 0;
@@ -279,23 +274,21 @@ mp_chunk_read(const mp_chunk *chunk, const int32_t fd)
  *  -1  on error
  */
 static __inline__ int32_t
-mp_chunk_write(const mp_chunk *chunk, const int32_t fd)
-{
+mp_chunk_write(const mp_chunk *chunk, const int32_t fd) {
     const uint8_t *ptr = (const uint8_t *) chunk->data;
-    uint64_t       rem = CHUNK_BYTES;
+    uint64_t rem = CHUNK_BYTES;
 
     while (rem > 0) {
         const int64_t ret = write(fd, ptr, rem);
 
         /* Expected: positive bytes written. ret <= 0 is unlikely. */
         if (__builtin_expect(ret <= 0, 0)) {
-            if (errno == EINTR)
-                continue;       /* retry on interrupt */
-            return -1;          /* error */
+            if (errno == EINTR) continue; /* retry on interrupt */
+            return -1; /* error */
         }
 
         ptr += ret;
-        rem -= (uint64_t)ret;
+        rem -= (uint64_t) ret;
     }
 
     return 0;

@@ -48,7 +48,7 @@ typedef struct mp_tree {
     mp_chunk *root;      /**< Root of RB-tree */
     mp_chunk *find;      /**< Cache for last found node */
 
-    mp_coffs offset;     /**< Last accessed offset */
+    mp_copos offset;     /**< Last accessed offset */
     int32_t pos;          /**< Depth index for stack during insert/remove */
 
     mp_chunk *stack[32]; /**< Ancestor nodes during traversal */

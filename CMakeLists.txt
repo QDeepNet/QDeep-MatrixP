@@ -9,4 +9,8 @@ add_executable(MatrixP
         mp_page.h
         mp_pool.h
         mp_matrix.h
+        mp_chunk.c
+        mp_page.c
+        mp_pool.c
+        mp_matrix.c
 )

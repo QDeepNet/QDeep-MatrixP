@@ -162,7 +162,7 @@ mp_csize_real(const mp_csize size) {
  */
 
 /**
- * Global chunk offset.
+ * Global chunk offset position.
  *
  * This union enables:
  *   - Fast 64-bit comparisons
@@ -180,7 +180,7 @@ typedef union mp_coffs {
         uint32_t x; /**< Chunk X coordinate (global space) */
         uint32_t y; /**< Chunk Y coordinate (global space) */
     } dim;
-} mp_coffs;
+} mp_copos;
 
 
 /**
@@ -194,7 +194,7 @@ typedef union mp_coffs {
  * Ordering is lexicographical over the 64-bit packed value.
  */
 static __inline__ int32_t
-mp_coffs_cmp(const mp_coffs a, const mp_coffs b) {
+mp_coffs_cmp(const mp_copos a, const mp_copos b) {
     return (a.pos > b.pos) - (a.pos < b.pos);
 }
 
@@ -231,7 +231,7 @@ typedef struct mp_chunk {
 
     mp_cdata data; /**< Pointer to chunk data buffer */
     mp_csize size; /**< Effective chunk dimensions */
-    mp_coffs offset; /**< Global chunk offset */
+    mp_copos opos; /**< Global chunk offset */
 } mp_chunk;
 
 /**
@@ -243,7 +243,7 @@ static __inline__ void
 mp_chunk_init(mp_chunk *chunk) {
     chunk->data = NULL; /* no attached memory yet */
     chunk->size.size = 0; /* chunk data size (bytes/elements) */
-    chunk->offset.pos = 0; /* logical offset of this chunk */
+    chunk->opos.pos = 0; /* logical offset of this chunk */
 }
 
 /**

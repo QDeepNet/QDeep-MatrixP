@@ -163,7 +163,7 @@ rb_tree_remove_optimize(mp_tree *tree) {
  * Uses cache in tree->find to speed repeated lookups.
  */
 static mp_chunk *
-rb_tree_find(mp_tree *tree, const mp_coffs offset) {
+rb_tree_find(mp_tree *tree, const mp_copos offset) {
     if (tree->find && mp_coffs_cmp(tree->offset, offset) == 0) return tree->find;
 
     mp_chunk *node = tree->root;
@@ -171,9 +171,9 @@ rb_tree_find(mp_tree *tree, const mp_coffs offset) {
     tree->offset = offset;
 
     while (node) {
-        if (mp_coffs_cmp(node->offset, offset) == 0) return tree->find = node;
+        if (mp_coffs_cmp(node->opos, offset) == 0) return tree->find = node;
         tree->stack[++tree->pos] = node;
-        node = node->sides[tree->sides[tree->pos] = mp_coffs_cmp(node->offset, offset) < 0];
+        node = node->sides[tree->sides[tree->pos] = mp_coffs_cmp(node->opos, offset) < 0];
     }
 
     return tree->find = NULL;
@@ -186,8 +186,8 @@ static void
 rb_tree_insert(mp_tree *tree, mp_chunk *chunk) {
     mp_chunk *node = tree->find;
 
-    if (!node || mp_coffs_cmp(node->offset, chunk->offset) != 0)
-        node = rb_tree_find(tree, chunk->offset);
+    if (!node || mp_coffs_cmp(node->opos, chunk->opos) != 0)
+        node = rb_tree_find(tree, chunk->opos);
 
     if (node) return;
 
@@ -211,8 +211,8 @@ rb_tree_remove(mp_tree *tree, const mp_chunk *chunk) {
     if (!chunk) return;
 
     mp_chunk *node = tree->find;
-    if (!node || mp_coffs_cmp(node->offset, chunk->offset) != 0)
-        node = rb_tree_find(tree, chunk->offset);
+    if (!node || mp_coffs_cmp(node->opos, chunk->opos) != 0)
+        node = rb_tree_find(tree, chunk->opos);
 
     if (!node) return;
 

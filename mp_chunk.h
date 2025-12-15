@@ -263,7 +263,7 @@ mp_chunk_set_size(mp_chunk *chunk, const mp_csize size) {
  *  -1  on EOF or unrecoverable error
  */
 static __inline__ int32_t
-mp_chunk_read(const mp_chunk *chunk, int32_t fd);
+mp_chunk_recv(const mp_chunk *chunk, int32_t fd);
 
 
 /**
@@ -275,7 +275,7 @@ mp_chunk_read(const mp_chunk *chunk, int32_t fd);
  *  -1  on error
  */
 static __inline__ int32_t
-mp_chunk_write(const mp_chunk *chunk, int32_t fd);
+mp_chunk_send(const mp_chunk *chunk, int32_t fd);
 
 
 #ifdef __cplusplus

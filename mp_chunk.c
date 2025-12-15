@@ -10,7 +10,7 @@
  *  -1  on EOF or unrecoverable error
  */
 int32_t
-mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
+mp_chunk_recv(const mp_chunk *chunk, const int32_t fd) {
     uint8_t *ptr = (uint8_t *) chunk->data;
 
     const uint16_t size_x = chunk->size.dim.x + 1;
@@ -50,7 +50,7 @@ mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
  *  -1  on error
  */
 int32_t
-mp_chunk_write(const mp_chunk *chunk, const int32_t fd) {
+mp_chunk_send(const mp_chunk *chunk, const int32_t fd) {
     const uint8_t *ptr = (const uint8_t *) chunk->data;
 
     const uint16_t size_x = chunk->size.dim.x + 1;

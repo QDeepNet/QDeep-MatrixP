@@ -97,10 +97,35 @@ mp_matrix_init(mp_matrix *matx, mp_pool *pool);
 static __inline__ void
 mp_matrix_free(mp_matrix *matx);
 
+/**
+ * @brief Set the matrix size and resize the underlying file.
+ *
+ * Stores the matrix dimensions in the file header and resizes the file
+ * to accommodate the matrix data.
+ *
+ * @param matx Pointer to the matrix object.
+ * @param size Matrix dimensions (width × height).
+ *
+ * @return 0  On success.
+ * @return -1 On error (invalid file descriptor or system call failure).
+ */
 static __inline__ int32_t
 mp_matrix_set_size(mp_matrix *matx, mp_msize size);
 
-static __inline__ void
+/**
+ * @brief Open a file for the matrix and read its header if it exists.
+ *
+ * Opens the specified file in read/write mode, creating it if necessary.
+ * If the file already contains a matrix header, reads the matrix size
+ * into the matrix structure.
+ *
+ * @param matx    Pointer to the matrix object.
+ * @param filename Path to the file to open.
+ *
+ * @return 0  On success.
+ * @return -1 On error (invalid parameters or file open failure).
+ */
+static __inline__ int32_t
 mp_matrix_set_file(mp_matrix *matx, const char *filename);
 
 

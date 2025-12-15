@@ -287,17 +287,36 @@ mp_matrix_free(mp_matrix *matx) {
 
 int32_t
 mp_matrix_set_size(mp_matrix *matx, const mp_msize size) {
-    if (matx->fd == -1) return -1;
-    constexpr uint64_t _header = sizeof(mp_msize);
-    const uint64_t _size = size.x * size.y * sizeof(int64_t);
+    if (!matx || matx->fd == -1) return -1;
 
-    const int32_t res = ftruncate(matx->fd, 0) == -1 || ftruncate(matx->fd, _header + _size) == -1 ? -1 : 0;
-    matx->size = res == 0? size: (mp_msize){0, 0};
+    constexpr uint64_t header_size = sizeof(mp_msize);
+    const uint64_t data_size   = (uint64_t)size.x * size.y * sizeof(int64_t);
+    const uint64_t total_size  = header_size + data_size;
 
-    return res;
+    /* Resize file */
+    if (ftruncate(matx->fd, total_size) == -1)
+        return -1;
+
+    /* Write header (matrix size) */
+    if (pwrite(matx->fd, &size, header_size, 0) != header_size)
+        return -1;
+
+    matx->size = size;
+    return 0;
 }
 
-void
+int32_t
 mp_matrix_set_file(mp_matrix *matx, const char *filename) {
-    matx->fd = open(filename, O_RDWR | O_CREAT);
+    if (!matx || !filename) return -1;
+    constexpr uint64_t header_size = sizeof(mp_msize);
+
+    matx->fd = open(filename, O_RDWR | O_CREAT, 0644);
+    if (matx->fd == -1) return -1;
+
+    /* Try to read header */
+    mp_msize size;
+    matx->size = pread(matx->fd, &size, header_size, 0) == header_size ?
+        size : (mp_msize){0, 0};
+
+    return 0;
 }

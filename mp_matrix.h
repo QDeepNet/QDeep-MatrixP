@@ -26,6 +26,8 @@
 #define QDEEP_MATRIXP_MATRIX_H
 
 
+#include <stdio.h>
+
 #include "mp_chunk.h"
 #include "mp_pool.h"
 
@@ -359,6 +361,34 @@ mp_matrix_init(mp_matrix *matx, mp_pool *pool) {
 static __inline__ void
 mp_matrix_free(mp_matrix *matx) {
     mp_tree_free(&matx->tree, matx->pool);
+}
+
+static __inline__ int32_t
+mp_matrix_set_size(mp_matrix *matx, const mp_msize size) {
+    if (matx->fd == -1) return -1;
+    constexpr uint64_t _header = sizeof(mp_msize);
+    const uint64_t _size = size.x * size.y * sizeof(int64_t);
+
+    const int32_t res = ftruncate(matx->fd, 0) == -1 || ftruncate(matx->fd, _header + _size) == -1 ? -1 : 0;
+    matx->size = res == 0? size: (mp_msize){0, 0};
+
+    return res;
+}
+
+static __inline__ void
+mp_matrix_set_file(mp_matrix *matx, const char *filename) {
+    matx->fd = open(filename, O_RDWR | O_CREAT);
+}
+
+
+static __inline__ void
+mp_matrix_recv(mp_matrix *matx, int32_t fd) {
+
+}
+
+static __inline__ void
+mp_matrix_send(mp_matrix *matx, int32_t fd) {
+
 }
 
 

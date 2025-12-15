@@ -140,10 +140,20 @@ typedef union mp_csize {
     uint16_t size;
 
     struct {
-        uint8_t x; /**< Encoded width  (real = 256 - x) */
-        uint8_t y; /**< Encoded height (real = 256 - y) */
+        uint8_t x; /**< Encoded width  (real = = x + 1) */
+        uint8_t y; /**< Encoded height (real = y + 1) */
     } dim;
 } mp_csize;
+
+/**
+ * This function is to calculate the real size of the chunk
+ *
+ * @return real size of the chunk
+ */
+static __inline__ uint32_t
+mp_csize_real(const mp_csize size) {
+    return (size.dim.x + 1) * (size.dim.y + 1);
+}
 
 
 /* ============================================================================
@@ -236,9 +246,17 @@ mp_chunk_init(mp_chunk *chunk) {
     chunk->offset.pos = 0; /* logical offset of this chunk */
 }
 
+/**
+ * Initialize MP chunk size.
+ */
+static __inline__ void
+mp_chunk_set_size(mp_chunk *chunk, const mp_csize size) {
+    chunk->size = size;
+}
 
 /**
  * Read an entire chunk from file descriptor into chunk->data.
+ * Chunks size must be set before this function
  *
  * Returns:
  *   0  on success
@@ -247,19 +265,29 @@ mp_chunk_init(mp_chunk *chunk) {
 static __inline__ int32_t
 mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
     uint8_t *ptr = (uint8_t *) chunk->data;
-    uint64_t rem = CHUNK_BYTES;
 
-    while (rem > 0) {
-        const int64_t ret = read(fd, ptr, rem);
+    const uint16_t size_x = chunk->size.dim.x + 1;
+    const uint16_t size_y = chunk->size.dim.y + 1;
+    constexpr uint64_t size_d = sizeof(int64_t);
 
-        /* Expected: positive bytes read. ret <= 0 is unlikely. */
-        if (__builtin_expect(ret <= 0, 0)) {
-            if (errno == EINTR) continue; /* retry on interrupt */
-            return -1; /* EOF or real error */
+    for (uint16_t _y = 0; _y <= size_y; _y++) {
+        uint64_t rem = size_x * size_d;
+
+        while (rem > 0) {
+            const int64_t ret = read(fd, ptr, rem);
+
+            /* Expected: positive bytes read. ret <= 0 is unlikely. */
+            if (__builtin_expect(ret <= 0, 0)) {
+                if (errno == EINTR) continue; /* retry on interrupt */
+                return -1; /* EOF or real error */
+            }
+
+            ptr += ret;
+            rem -= (uint64_t) ret;
         }
 
-        ptr += ret;
-        rem -= (uint64_t) ret;
+        // Aligning to the next raw of the data in chunk
+        ptr += (CHUNK_W - size_x) * size_d;
     }
 
     return 0;
@@ -268,6 +296,7 @@ mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
 
 /**
  * Write entire chunk->data to file descriptor.
+ * Chunks size must be set before this function
  *
  * Returns:
  *   0  on success
@@ -276,19 +305,29 @@ mp_chunk_read(const mp_chunk *chunk, const int32_t fd) {
 static __inline__ int32_t
 mp_chunk_write(const mp_chunk *chunk, const int32_t fd) {
     const uint8_t *ptr = (const uint8_t *) chunk->data;
-    uint64_t rem = CHUNK_BYTES;
 
-    while (rem > 0) {
-        const int64_t ret = write(fd, ptr, rem);
+    const uint16_t size_x = chunk->size.dim.x + 1;
+    const uint16_t size_y = chunk->size.dim.y + 1;
+    constexpr uint64_t size_d = sizeof(int64_t);
 
-        /* Expected: positive bytes written. ret <= 0 is unlikely. */
-        if (__builtin_expect(ret <= 0, 0)) {
-            if (errno == EINTR) continue; /* retry on interrupt */
-            return -1; /* error */
+    for (uint16_t _y = 0; _y <= size_y; _y++) {
+        uint64_t rem = size_x * size_d;
+
+        while (rem > 0) {
+            const int64_t ret = write(fd, ptr, rem);
+
+            /* Expected: positive bytes read. ret <= 0 is unlikely. */
+            if (__builtin_expect(ret <= 0, 0)) {
+                if (errno == EINTR) continue; /* retry on interrupt */
+                return -1; /* EOF or real error */
+            }
+
+            ptr += ret;
+            rem -= (uint64_t) ret;
         }
 
-        ptr += ret;
-        rem -= (uint64_t) ret;
+        // Aligning to the next raw of the data in chunk
+        ptr += (CHUNK_W - size_x) * size_d;
     }
 
     return 0;

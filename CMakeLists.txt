@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 4.0)
 project(MatrixP C)
 
 set(CMAKE_C_STANDARD 23)
+add_compile_definitions(_GNU_SOURCE)
+
 
 add_executable(MatrixP
         main.c

@@ -1,5 +1,11 @@
 #include "mp_matrix.h"
 
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
 
 /* ============================================================================
  *  Tree initialization
@@ -319,4 +325,64 @@ mp_matrix_set_file(mp_matrix *matx, const char *filename) {
         size : (mp_msize){0, 0};
 
     return 0;
+}
+
+static int32_t
+mp_matrix_splice(const int32_t fd_f, const int32_t fd_t, const mp_msize size) {
+    uint64_t remain = size.x * size.y * sizeof(int64_t);
+    constexpr uint64_t chunk = CHUNK_BYTES;
+
+
+    int32_t pipefd[2] = {-1, -1};
+    if (pipe(pipefd) == -1) return -1;
+
+    while (remain) {
+        const uint64_t bytes = remain > chunk ? chunk : remain;
+
+        /* ---- fd_f -> pipe ---- */
+        int64_t n;
+        do {
+            n = splice(fd_f, NULL,
+                       pipefd[1], NULL,
+                       bytes, SPLICE_F_MORE | SPLICE_F_MOVE);
+        } while (n == -1 && (errno == EINTR || errno == EAGAIN));
+
+        if (n == 0) break; /* EOF */
+        if (n < 0) goto error;
+
+
+
+        /* ---- pipe -> fd_t ---- */
+        while (n > 0) {
+            int64_t m;
+            do {
+                m = splice(pipefd[0], NULL,
+                           fd_t, NULL,
+                           n, SPLICE_F_MORE | SPLICE_F_MOVE);
+            } while (m == -1 && (errno == EINTR || errno == EAGAIN));
+
+            if (m < 0) goto error;
+
+            n -= m;
+            remain -= m;
+        }
+    }
+
+    close(pipefd[0]);
+    close(pipefd[1]);
+    return 0;
+
+error:
+    close(pipefd[0]);
+    close(pipefd[1]);
+    return -1;
+}
+
+static __inline__ void
+mp_matrix_recv(mp_matrix *matx, int32_t fd) {
+}
+
+static __inline__ void
+mp_matrix_send(mp_matrix *matx, int32_t fd) {
+
 }

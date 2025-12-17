@@ -129,11 +129,11 @@ static __inline__ int32_t
 mp_matrix_set_file(mp_matrix *matx, const char *filename);
 
 
-static __inline__ void
+static __inline__ int32_t
 mp_matrix_recv(mp_matrix *matx, int32_t fd);
 
-static __inline__ void
-mp_matrix_send(mp_matrix *matx, int32_t fd);
+static __inline__ int32_t
+mp_matrix_send(const mp_matrix *matx, int32_t fd);
 
 
 #ifdef __cplusplus

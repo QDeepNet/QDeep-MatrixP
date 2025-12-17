@@ -378,11 +378,72 @@ error:
     return -1;
 }
 
-static __inline__ void
-mp_matrix_recv(mp_matrix *matx, int32_t fd) {
+static int32_t
+mp_matrix_recv_msize(mp_matrix *matx, const int32_t fd) {
+    uint8_t  hdr[16];
+    uint64_t x, y;
+
+    /* receive header */
+    uint64_t rem = sizeof(uint64_t);
+    uint64_t ptr = 0;
+
+    while (rem > 0) {
+        const int64_t ret = read(fd, hdr + ptr, rem);
+        if (__builtin_expect(ret <= 0, 0)) {
+            if (errno == EINTR) continue; /* retry on interrupt */
+            return -1; /* EOF or real error */
+        }
+
+        ptr += ret;
+        rem -= ret;
+    }
+
+    /* unpack */
+    __builtin_memcpy(&x, hdr + 0, 8);
+    __builtin_memcpy(&y, hdr + 8, 8);
+
+    mp_msize size;
+    size.x = be64toh(x);
+    size.y = be64toh(y);
+
+    return mp_matrix_set_size(matx, size);
 }
 
-static __inline__ void
-mp_matrix_send(mp_matrix *matx, int32_t fd) {
+static __inline__ int32_t
+mp_matrix_recv(mp_matrix *matx, const int32_t fd) {
+    if (mp_matrix_recv_msize(matx, fd) < 0) return -1;
+    return mp_matrix_splice(fd, matx->fd, matx->size);
+}
 
+static int32_t
+mp_matrix_send_msize(const mp_matrix *matx, const int32_t fd) {
+    uint8_t  hdr[16];
+    const uint64_t x = htobe64(matx->size.x);
+    const uint64_t y = htobe64(matx->size.y);
+
+    /* pack */
+    __builtin_memcpy(hdr + 0, &x, 8);
+    __builtin_memcpy(hdr + 8, &y, 8);
+
+    /* send header atomically */
+    uint64_t rem = sizeof(uint64_t);
+    uint64_t ptr = 0;
+
+    while (rem > 0) {
+        const int64_t ret = write(fd, hdr + ptr, rem);
+        if (__builtin_expect(ret <= 0, 0)) {
+            if (errno == EINTR) continue; /* retry on interrupt */
+            return -1; /* EOF or real error */
+        }
+
+        ptr += ret;
+        rem -= ret;
+    }
+    return 0;
+}
+
+static __inline__ int32_t
+mp_matrix_send(const mp_matrix *matx, const int32_t fd) {
+    if (mp_matrix_send_msize(matx, fd) < 0) return -1;
+    return mp_matrix_splice(matx->fd, fd, matx->size);
 }

@@ -291,6 +291,20 @@ mp_matrix_free(mp_matrix *matx) {
     mp_tree_free(&matx->tree, matx->pool);
 }
 
+/**
+ * Initialize or update matrix storage size.
+ *
+ * Resizes the backing file to contain:
+ *   [ mp_msize header | matrix data (int64_t) ]
+ *
+ * The header is written at offset 0 and stores matrix dimensions.
+ *
+ * @param matx  Matrix descriptor with a valid file descriptor.
+ * @param size  Matrix dimensions (x = columns, y = rows).
+ *
+ * @return  0 on success
+ * @return -1 on invalid input or I/O error
+ */
 int32_t
 mp_matrix_set_size(mp_matrix *matx, const mp_msize size) {
     if (!matx || matx->fd == -1) return -1;
@@ -311,6 +325,21 @@ mp_matrix_set_size(mp_matrix *matx, const mp_msize size) {
     return 0;
 }
 
+/**
+ * Open or attach a file as a matrix backing store.
+ *
+ * If the file already exists and contains a valid header,
+ * the matrix size is loaded from it.
+ *
+ * If the file is empty or smaller than the header,
+ * the matrix size is initialized to {0, 0}.
+ *
+ * @param matx      Matrix descriptor to initialize.
+ * @param filename  Path to backing file.
+ *
+ * @return  0 on success
+ * @return -1 on invalid input or open/read failure
+ */
 int32_t
 mp_matrix_set_file(mp_matrix *matx, const char *filename) {
     if (!matx || !filename) return -1;
@@ -327,6 +356,25 @@ mp_matrix_set_file(mp_matrix *matx, const char *filename) {
     return 0;
 }
 
+/**
+ * Zero-copy transfer of matrix payload between file descriptors.
+ *
+ * Transfers exactly:
+ *     size.x * size.y * sizeof(int64_t)
+ *
+ * Data is moved kernel-to-kernel using splice():
+ *   fd_f -> pipe -> fd_t
+ *
+ * This avoids user-space buffers and supports very large matrices
+ * (multi-TB) without RAM pressure.
+ *
+ * @param fd_f   Source file descriptor (must be readable).
+ * @param fd_t   Destination file descriptor (must be writable).
+ * @param size   Matrix dimensions defining transfer length.
+ *
+ * @return  0 on success
+ * @return -1 on failure
+ */
 static int32_t
 mp_matrix_splice(const int32_t fd_f, const int32_t fd_t, const mp_msize size) {
     uint64_t remain = size.x * size.y * sizeof(int64_t);
@@ -378,6 +426,21 @@ error:
     return -1;
 }
 
+/**
+ * Receive matrix size header from a stream/socket.
+ *
+ * Header format (network byte order):
+ *   [ uint64_t x | uint64_t y ]
+ *
+ * The received dimensions are validated implicitly by attempting
+ * to resize the matrix backing file.
+ *
+ * @param matx  Destination matrix.
+ * @param fd    Source file descriptor.
+ *
+ * @return  0 on success
+ * @return -1 on read or allocation failure
+ */
 static int32_t
 mp_matrix_recv_msize(mp_matrix *matx, const int32_t fd) {
     uint8_t  hdr[16];
@@ -409,12 +472,35 @@ mp_matrix_recv_msize(mp_matrix *matx, const int32_t fd) {
     return mp_matrix_set_size(matx, size);
 }
 
+/**
+ * Receive full matrix (header + payload).
+ *
+ * Payload transfer is performed via zero-copy splice().
+ *
+ * @param matx  Destination matrix.
+ * @param fd    Source file descriptor.
+ *
+ * @return  0 on success
+ * @return -1 on failure
+ */
 static __inline__ int32_t
 mp_matrix_recv(mp_matrix *matx, const int32_t fd) {
     if (mp_matrix_recv_msize(matx, fd) < 0) return -1;
     return mp_matrix_splice(fd, matx->fd, matx->size);
 }
 
+/**
+ * Send matrix size header to a stream/socket.
+ *
+ * Header format (network byte order):
+ *   [ uint64_t x | uint64_t y ]
+ *
+ * @param matx  Source matrix.
+ * @param fd    Destination file descriptor.
+ *
+ * @return  0 on success
+ * @return -1 on write failure
+ */
 static int32_t
 mp_matrix_send_msize(const mp_matrix *matx, const int32_t fd) {
     uint8_t  hdr[16];
@@ -442,6 +528,17 @@ mp_matrix_send_msize(const mp_matrix *matx, const int32_t fd) {
     return 0;
 }
 
+/**
+ * Send full matrix (header + payload).
+ *
+ * Payload is transferred using kernel zero-copy splice().
+ *
+ * @param matx  Source matrix.
+ * @param fd    Destination file descriptor.
+ *
+ * @return  0 on success
+ * @return -1 on failure
+ */
 static __inline__ int32_t
 mp_matrix_send(const mp_matrix *matx, const int32_t fd) {
     if (mp_matrix_send_msize(matx, fd) < 0) return -1;
